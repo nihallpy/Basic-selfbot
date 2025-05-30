@@ -1,0 +1,210 @@
+import discord
+import asyncio
+import logging
+
+client = discord.Client()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("Selfbot")
+
+TOKEN = ""
+
+Owner_id = 
+Wordlist = ["loooool", "hahahahhaha", "grrrd"]
+Ladder = ["nga", "u", "suck", "lol", "bahahha"]
+
+# Global flags
+Spamming = False
+Autobeef = False
+Selfreact = False
+Autoreact = False
+Laddering = FALSCH
+Autolarge = False
+gc_name_changer = False
+
+react_emoji = ""
+react_target = None
+react_to_others = {}
+
+ladder_task = None
+
+gc_name = None
+gc_name_counter = 0
+gc_channel = None
+
+
+@client.event
+async def on_ready():
+    print(f"Logged in as → {client.user}")
+
+
+async def ladder_loop(channel):
+    global Laddering
+    while Laddering:
+        for word in Ladder:
+            try:
+                await channel.send(word)
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    retry_after = float(e.response.headers.get("Retry-After", 1))
+                    logger.warning(f"Rate limited. Waiting {retry_after}s.")
+                    await asyncio.sleep(retry_after)
+                else:
+                    logger.error(f"HTTP error: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error during laddering: {e}")
+
+
+@client.event
+async def on_message(message):
+    global Spamming, Autobeef, Autolarge, Selfreact, Autoreact, Laddering
+    global react_emoji, react_target, ladder_task, react_to_others
+    global gc_name_changer, gc_name_counter, gc_name, gc_channel
+
+    content = message.content.strip()
+
+    if message.author.id != Owner_id:
+        if Autoreact and str(message.author.id) in react_to_others:
+            try:
+                await message.add_reaction(react_to_others[str(message.author.id)])
+            except Exception as e:
+                logger.error(f"Failed to auto-react to {message.author}: {e}")
+        return
+
+    if content.startswith(".spam"):
+        Spamming = True
+        msg = content[6:]
+        while Spamming:
+            try:
+                await message.channel.send(msg)
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    retry_after = float(e.response.headers.get("Retry-After", 1))
+                    logger.warning(f"Rate limited. Waiting {retry_after}s.")
+                    await asyncio.sleep(retry_after)
+                else:
+                    logger.error(f"HTTP error: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}")
+        return
+
+    elif content == ".stopspam":
+        Spamming = False
+        return
+
+    elif content.startswith(".kill"):
+        if message.mentions:
+            mentions_text = " ".join(user.mention for user in message.mentions)
+            for word in Wordlist:
+                try:
+                    await message.channel.send(f"{word} {mentions_text}")
+                except discord.errors.HTTPException as e:
+                    if e.status == 429:
+                        retry_after = float(e.response.headers.get("Retry-After", 1))
+                        logger.warning(f"Rate limited. Waiting {retry_after}s.")
+                        await asyncio.sleep(retry_after)
+                    else:
+                        logger.error(f"HTTP error: {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}")
+        else:
+            await message.channel.send("Mention someone first dumbass.")
+        return
+
+    elif content.startswith(".selfreact"):
+        react_emoji = content[11:].strip()
+        Selfreact = True
+        await message.channel.send(f"Reacting with {react_emoji} nga")
+        return
+
+    elif content == ".selfstop":
+        Selfreact = False
+        await message.channel.send("Stopped nga")
+        return
+
+    if Selfreact and message.author.id == Owner_id:
+        try:
+            await message.add_reaction(react_emoji)
+        except Exception as e:
+            logger.error(f"Failed to self-react: {e}")
+
+    if content.startswith(".react"):
+        parts = content.split()
+        if len(parts) >= 3 and message.mentions:
+            target_user = message.mentions[0]
+            emoji = parts[-1]
+            react_to_others[str(target_user.id)] = emoji.strip()
+            Autoreact = True
+            await message.channel.send(f"Will react to {target_user.name} with {emoji} nga")
+        else:
+            await message.channel.send("Usage: .react @user emoji")
+        return
+
+    elif content == ".stopr":
+        Autoreact = False
+        react_to_others.clear()
+        await message.channel.send("Stopped hahahaz6sysyau7a7a")
+        return
+
+    elif content.startswith(".unreact") and message.mentions:
+        user_id = str(message.mentions[0].id)
+        if user_id in react_to_others:
+            del react_to_others[user_id]
+            await message.channel.send(f"Stopped reacting to {message.mentions[0].name}")
+        else:
+            await message.channel.send("That user wasn't being reacted to.")
+        return
+
+    elif content == ".ladder":
+        if not Laddering:
+            Laddering = True
+            ladder_task = asyncio.create_task(ladder_loop(message.channel))
+            await message.channel.send("Started nga")
+        else:
+            await message.channel.send("Already laddering dumbass")
+        return
+
+    elif content == ".stopl":
+        Laddering = False
+        await message.channel.send("Stopped ngaa.")
+        return
+
+    elif content == ".large":
+        Autolarge = True
+        await message.channel.send("Enabled large bozo")
+        return
+
+    elif content == ".stoplarge":
+        Autolarge = False
+        await message.channel.send("Stopped autolarge ye bozo")
+        return
+
+    if Autolarge and message.author.id == Owner_id:
+        try:
+            if not content.startswith("#"):
+                await message.edit(content=f"# {content}")
+        except Exception as e:
+            logger.error(f"Failed to edit message: {e}")
+
+    elif content.startswith(".gcbitch"):
+        gc_name = content[len(".gcbitch"):].strip()
+        if gc_name:
+            gc_name_changer = True
+            gc_channel = message.channel
+            await message.channel.send("Started aaxd")
+            while gc_name_changer:
+                try:
+                    new_name = f"{gc_name} {gc_name_counter}"
+                    await gc_channel.edit(name=new_name)
+                    gc_name_counter += 1
+                    await asyncio.sleep(0.3)
+                except Exception:
+                    pass
+
+    elif content == ".stopgc":
+        gc_name_changer = False
+        await message.channel.send("Stopped x")
+        return
+
+
+client.run(TOKEN)
